@@ -1,67 +1,395 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>GIS Desa - Input Bangunan</title>
+    <meta charset="utf-8">
+    <title>GIS Desa - Pemetaan Bangunan</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css"/>
     <style>
-        #map { height: 400px; width: 100%; margin-bottom: 10px; }
-        .form-group { margin-bottom: 10px; }
-        label { display: block; font-weight: bold; }
-        input { width: 100%; padding: 8px; box-sizing: border-box; }
-        button { padding: 10px 20px; background: #28a745; color: white; border: none; cursor: pointer; }
+        * { box-sizing: border-box; }
+        body { font-family: 'Segoe UI', Arial, sans-serif; margin: 0; background: #f4f6f8; color: #222; }
+        .container { max-width: 1100px; margin: 0 auto; padding: 16px; }
+        header h3 { margin: 0; color: #1b5e20; }
+        header p { margin: 2px 0 14px; color: #666; font-size: 13px; }
+        .cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 12px; }
+        .card { background: #fff; border-radius: 8px; padding: 14px; box-shadow: 0 1px 3px rgba(0,0,0,.12); }
+        .card .label { font-size: 12px; color: #777; text-transform: uppercase; }
+        .card .value { font-size: 22px; font-weight: bold; margin-top: 4px; color: #1b5e20; }
+        .panel { background: #fff; border-radius: 8px; padding: 14px; box-shadow: 0 1px 3px rgba(0,0,0,.12); margin-bottom: 12px; }
+        .panel h4 { margin: 0 0 10px; color: #333; }
+        #map { height: 480px; width: 100%; border-radius: 8px; }
+        .toolbar { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
+        .toolbar input, .toolbar select { padding: 8px; border: 1px solid #ccc; border-radius: 6px; font-size: 14px; }
+        .toolbar input { flex: 1; min-width: 200px; }
+        .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+        .form-group { margin-bottom: 4px; }
+        label { display: block; font-weight: bold; font-size: 13px; margin-bottom: 4px; }
+        input, select { width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 6px; font-size: 14px; }
+        input.invalid, select.invalid { border-color: #dc3545; }
+        .area-info { grid-column: 1 / -1; background: #e8f5e9; padding: 10px; border-radius: 6px; font-size: 14px; }
+        button { padding: 10px 18px; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; }
+        .btn-primary { background: #28a745; color: #fff; }
+        .btn-warning { background: #ffc107; color: #333; }
+        .btn-danger { background: #dc3545; color: #fff; }
+        .btn-secondary { background: #6c757d; color: #fff; }
+        .btn-small { padding: 4px 10px; font-size: 12px; margin: 2px; }
+        .actions { margin-top: 12px; display: flex; gap: 8px; flex-wrap: wrap; }
+        .leaflet-popup-content { font-size: 13px; min-width: 180px; }
+        #chartWrap { position: relative; height: 260px; }
+        .status { margin-top: 10px; font-size: 13px; color: #555; }
+        .hidden { display: none; }
+        @media (max-width: 700px) {
+            .cards { grid-template-columns: 1fr 1fr; }
+            .form-grid { grid-template-columns: 1fr; }
+            .area-info { grid-column: auto; }
+        }
     </style>
 </head>
 <body>
-    <h3>Pemetaan Bangunan</h3>
+<div class="container">
+    <header>
+        <h3>GIS Desa - Pemetaan Bangunan</h3>
+        <p>Dashboard, peta interaktif, dan pengelolaan data bangunan penduduk.</p>
+    </header>
+
+    <div class="cards">
+        <div class="card"><div class="label">Jumlah Bangunan</div><div class="value" id="statJumlah">-</div></div>
+        <div class="card"><div class="label">Total Luas (m²)</div><div class="value" id="statLuas">-</div></div>
+        <div class="card"><div class="label">Rata-rata Luas (m²)</div><div class="value" id="statAvg">-</div></div>
+        <div class="card"><div class="label">Jumlah Keluarga</div><div class="value" id="statKeluarga">-</div></div>
+    </div>
+
+    <div class="panel">
+        <h4>Sebaran Jenis Bangunan</h4>
+        <div id="chartWrap"><canvas id="chartJenis"></canvas></div>
+    </div>
+
+    <div class="toolbar">
+        <input type="text" id="searchInput" placeholder="Cari nama / alamat / no bangunan..." oninput="renderFiltered()">
+        <select id="filterJenis" onchange="renderFiltered()"><option value="">Semua Jenis</option></select>
+        <select id="filterRt" onchange="renderFiltered()"><option value="">Semua RT/RW</option></select>
+        <button class="btn-secondary" onclick="resetFilter()">Reset</button>
+    </div>
+
     <div id="map"></div>
-    
-    <div class="form-group">
-        <label>No Bangunan:</label>
-        <input type="text" id="noBangunan">
-    </div>
-    <div class="form-group">
-        <label>Nama Penghuni:</label>
-        <input type="text" id="nama">
-    </div>
-    <div class="form-group">
-        <label>Alamat:</label>
-        <input type="text" id="alamat">
-    </div>
-    <p>Luas (m²): <span id="area">0</span></p>
-    <button onclick="submitData()">Simpan Data</button>
 
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
-    <script>
-        var map = L.map('map').setView([-6.2000, 106.8166], 15);
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+    <div class="panel">
+        <h4 id="formTitle">Input Data Bangunan</h4>
+        <div class="form-grid">
+            <div class="form-group">
+                <label>No Bangunan</label>
+                <input type="text" id="noBangunan" placeholder="contoh: B-001">
+            </div>
+            <div class="form-group">
+                <label>Jenis Bangunan</label>
+                <select id="jenis">
+                    <option value="">- Pilih Jenis -</option>
+                    <option>Rumah Tinggal</option>
+                    <option>Toko/Warung</option>
+                    <option>Kantor</option>
+                    <option>Sekolah</option>
+                    <option>Masjid</option>
+                    <option>Gudang</option>
+                    <option>Lainnya</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Nama Penghuni</label>
+                <input type="text" id="nama" placeholder="Nama kepala keluarga / pemilik">
+            </div>
+            <div class="form-group">
+                <label>Alamat</label>
+                <input type="text" id="alamat" placeholder="contoh: Jl. Merdeka No. 5">
+            </div>
+            <div class="form-group">
+                <label>RT/RW</label>
+                <input type="text" id="rtRw" placeholder="contoh: 02/05">
+            </div>
+            <div class="form-group">
+                <label>Jumlah Keluarga</label>
+                <input type="number" id="jumlahKeluarga" min="1" placeholder="1">
+            </div>
+            <div class="area-info">
+                Luas bangunan: <strong><span id="area">0</span> m²</strong>
+                <span class="status" id="statusText"></span>
+            </div>
+        </div>
+        <div class="actions">
+            <button class="btn-primary" id="btnSubmit" onclick="submitForm()">Simpan Data</button>
+            <button class="btn-warning hidden" id="btnCancel" onclick="resetForm()">Batal Edit</button>
+            <button class="btn-secondary" onclick="clearPolygon()">Hapus Poligon</button>
+        </div>
+    </div>
+</div>
 
-        var drawnItems = new L.FeatureGroup();
-        map.addLayer(drawnItems);
-        var drawControl = new L.Control.Draw({ edit: { featureGroup: drawnItems }, draw: { polygon: true, marker: false, circle: false, polyline: false, rectangle: true } });
-        map.addControl(drawControl);
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script>
+    var map = L.map('map').setView([-6.2000, 106.8166], 15);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 })
+        .addTo(map);
 
-        var currentCoords = "";
-        map.on(L.Draw.Event.CREATED, function (e) {
-            drawnItems.clearLayers();
-            var layer = e.layer;
-            drawnItems.addLayer(layer);
-            var area = L.GeometryUtil.geodesicArea(layer.getLatLngs()[0]);
-            document.getElementById('area').innerText = (area).toFixed(2);
-            currentCoords = JSON.stringify(layer.getLatLngs()[0]);
+    var drawnItems = new L.FeatureGroup();
+    map.addLayer(drawnItems);
+    var buildingLayer = new L.FeatureGroup();
+    map.addLayer(buildingLayer);
+
+    var drawControl = new L.Control.Draw({
+        edit: { featureGroup: drawnItems },
+        draw: { polygon: true, rectangle: true, marker: false, circle: false, polyline: false, circlemarker: false }
+    });
+    map.addControl(drawControl);
+
+    var JENIS_COLORS = {
+        'Rumah Tinggal': '#2e7d32',
+        'Toko/Warung': '#f57c00',
+        'Kantor': '#1565c0',
+        'Sekolah': '#6a1b9a',
+        'Masjid': '#00897b',
+        'Gudang': '#5d4037',
+        'Lainnya': '#757575'
+    };
+
+    var currentCoords = "";
+    var currentArea = 0;
+    var editId = null;
+    var allData = [];
+    var statsChart = null;
+
+    map.on(L.Draw.Event.CREATED, function (e) {
+        drawnItems.clearLayers();
+        var layer = e.layer;
+        drawnItems.addLayer(layer);
+        currentArea = L.GeometryUtil.geodesicArea(layer.getLatLngs()[0]);
+        document.getElementById('area').innerText = currentArea.toFixed(2);
+        currentCoords = JSON.stringify(layer.getLatLngs()[0]);
+        document.getElementById('statusText').innerText = 'Poligon baru digambar.';
+    });
+
+    function parseCoords(raw) {
+        if (!raw) return null;
+        try {
+            var arr = JSON.parse(raw);
+            if (!Array.isArray(arr) || arr.length < 3) return null;
+            return arr.map(function (p) {
+                if (typeof p.lat === 'number' && typeof p.lng === 'number') return [p.lat, p.lng];
+                return [p[0], p[1]];
+            });
+        } catch (e) { return null; }
+    }
+
+    function loadAll() {
+        google.script.run
+            .withSuccessHandler(function (data) { allData = data; renderFiltered(); renderFilters(); })
+            .withFailureHandler(function (err) { alert('Gagal memuat data: ' + err.message); })
+            .getData();
+        google.script.run
+            .withSuccessHandler(renderStats)
+            .withFailureHandler(function (err) { alert('Gagal memuat statistik: ' + err.message); })
+            .getStats();
+    }
+
+    function renderFiltered() {
+        var q = document.getElementById('searchInput').value.toLowerCase();
+        var j = document.getElementById('filterJenis').value;
+        var r = document.getElementById('filterRt').value;
+        var list = allData.filter(function (b) {
+            var text = (b.nama + ' ' + b.alamat + ' ' + b.noBangunan).toLowerCase();
+            if (q && text.indexOf(q) === -1) return false;
+            if (j && b.jenis !== j) return false;
+            if (r && b.rtRw !== r) return false;
+            return true;
         });
+        renderMarkers(list);
+    }
 
-        function submitData() {
-            var data = {
-                noBangunan: document.getElementById('noBangunan').value,
-                nama: document.getElementById('nama').value,
-                alamat: document.getElementById('alamat').value,
-                luas: document.getElementById('area').innerText,
-                koordinat: currentCoords
-            };
-            google.script.run.withSuccessHandler(function(res){ alert(res); }).saveData(data);
+    function renderFilters() {
+        var jenis = {}, rt = {};
+        allData.forEach(function (b) {
+            if (b.jenis) jenis[b.jenis] = 1;
+            if (b.rtRw) rt[b.rtRw] = 1;
+        });
+        var selJ = document.getElementById('filterJenis');
+        var selR = document.getElementById('filterRt');
+        selJ.innerHTML = '<option value="">Semua Jenis</option>';
+        selR.innerHTML = '<option value="">Semua RT/RW</option>';
+        Object.keys(jenis).sort().forEach(function (k) {
+            selJ.innerHTML += '<option>' + k + '</option>';
+        });
+        Object.keys(rt).sort().forEach(function (k) {
+            selR.innerHTML += '<option>' + k + '</option>';
+        });
+    }
+
+    function renderMarkers(list) {
+        buildingLayer.clearLayers();
+        var hasPolygon = false;
+        list.forEach(function (b) {
+            var pts = parseCoords(b.koordinat);
+            var color = JENIS_COLORS[b.jenis] || '#757575';
+            var popup = '<b>' + (b.noBangunan || '-') + '</b><br>' +
+                'Nama: ' + (b.nama || '-') + '<br>' +
+                'Alamat: ' + (b.alamat || '-') + '<br>' +
+                'RT/RW: ' + (b.rtRw || '-') + ' | Keluarga: ' + (b.jumlahKeluarga || '-') + '<br>' +
+                'Jenis: ' + (b.jenis || '-') + ' | Luas: ' + (b.luas || '0') + ' m²<br>' +
+                '<button class="btn-small btn-warning" onclick="editBuilding(\'' + b.id + '\')">Edit</button> ' +
+                '<button class="btn-small btn-danger" onclick="deleteBuilding(\'' + b.id + '\')">Hapus</button>';
+            if (pts) {
+                hasPolygon = true;
+                L.polygon(pts, { color: color, weight: 2, fillOpacity: 0.25 })
+                    .bindPopup(popup)
+                    .addTo(buildingLayer);
+            } else {
+                L.circleMarker([-6.2, 106.8166], { radius: 7, color: color, fillOpacity: 0.7 })
+                    .bindPopup(popup)
+                    .addTo(buildingLayer);
+            }
+        });
+        if (hasPolygon && buildingLayer.getLayers().length > 0) {
+            map.fitBounds(buildingLayer.getBounds(), { padding: [30, 30] });
         }
-    </script>
+    }
+
+    function renderStats(s) {
+        document.getElementById('statJumlah').innerText = s.jumlah;
+        document.getElementById('statLuas').innerText = s.totalLuas;
+        document.getElementById('statAvg').innerText = s.avgLuas;
+        document.getElementById('statKeluarga').innerText = s.totalKeluarga;
+        var labels = Object.keys(s.perJenis);
+        var values = labels.map(function (k) { return s.perJenis[k]; });
+        if (statsChart) statsChart.destroy();
+        statsChart = new Chart(document.getElementById('chartJenis'), {
+            type: 'doughnut',
+            data: {
+                labels: labels,
+                datasets: [{
+                    data: values,
+                    backgroundColor: labels.map(function (k) { return JENIS_COLORS[k] || '#757575'; })
+                }]
+            },
+            options: { maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } } }
+        });
+    }
+
+    function resetFilter() {
+        document.getElementById('searchInput').value = '';
+        document.getElementById('filterJenis').value = '';
+        document.getElementById('filterRt').value = '';
+        renderFiltered();
+    }
+
+    function clearPolygon() {
+        drawnItems.clearLayers();
+        currentCoords = "";
+        currentArea = 0;
+        document.getElementById('area').innerText = '0';
+        document.getElementById('statusText').innerText = '';
+    }
+
+    function editBuilding(id) {
+        var b = allData.filter(function (x) { return x.id === id; })[0];
+        if (!b) { alert('Data tidak ditemukan!'); return; }
+        editId = b.id;
+        document.getElementById('noBangunan').value = b.noBangunan || '';
+        document.getElementById('nama').value = b.nama || '';
+        document.getElementById('alamat').value = b.alamat || '';
+        document.getElementById('rtRw').value = b.rtRw || '';
+        document.getElementById('jenis').value = b.jenis || '';
+        document.getElementById('jumlahKeluarga').value = b.jumlahKeluarga || '';
+        currentArea = parseFloat(b.luas) || 0;
+        currentCoords = b.koordinat || '';
+        document.getElementById('area').innerText = currentArea.toFixed(2);
+        document.getElementById('btnSubmit').innerText = 'Perbarui Data';
+        document.getElementById('btnSubmit').classList.add('btn-warning');
+        document.getElementById('btnSubmit').classList.remove('btn-primary');
+        document.getElementById('btnCancel').classList.remove('hidden');
+        document.getElementById('formTitle').innerText = 'Edit Data Bangunan (ID: ' + b.id + ')';
+        document.getElementById('statusText').innerText = 'Mode edit aktif. Gambar ulang poligon bila luas berubah.';
+        clearInvalid();
+        var pts = parseCoords(b.koordinat);
+        if (pts) {
+            drawnItems.clearLayers();
+            L.polygon(pts, { color: '#dc3545' }).addTo(drawnItems);
+            map.fitBounds(L.latLngBounds(pts), { padding: [20, 20] });
+        }
+        document.getElementById('noBangunan').scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+
+    function deleteBuilding(id) {
+        var b = allData.filter(function (x) { return x.id === id; })[0];
+        var label = b ? (b.noBangunan + ' - ' + b.nama) : 'ini';
+        if (!confirm('Hapus bangunan "' + label + '"? Data tidak dapat dikembalikan.')) return;
+        google.script.run
+            .withSuccessHandler(function (res) { alert(res); loadAll(); })
+            .withFailureHandler(function (err) { alert('Gagal menghapus: ' + err.message); })
+            .deleteData(id);
+    }
+
+    function resetForm() {
+        editId = null;
+        ['noBangunan', 'nama', 'alamat', 'rtRw', 'jumlahKeluarga'].forEach(function (id) {
+            document.getElementById(id).value = '';
+        });
+        document.getElementById('jenis').value = '';
+        clearPolygon();
+        clearInvalid();
+        document.getElementById('btnSubmit').innerText = 'Simpan Data';
+        document.getElementById('btnSubmit').classList.add('btn-primary');
+        document.getElementById('btnSubmit').classList.remove('btn-warning');
+        document.getElementById('btnCancel').classList.add('hidden');
+        document.getElementById('formTitle').innerText = 'Input Data Bangunan';
+    }
+
+    function clearInvalid() {
+        document.querySelectorAll('input.invalid, select.invalid').forEach(function (el) {
+            el.classList.remove('invalid');
+        });
+    }
+
+    function markInvalid(id) {
+        document.getElementById(id).classList.add('invalid');
+    }
+
+    function submitForm() {
+        var data = {
+            noBangunan: document.getElementById('noBangunan').value.trim(),
+            nama: document.getElementById('nama').value.trim(),
+            alamat: document.getElementById('alamat').value.trim(),
+            rtRw: document.getElementById('rtRw').value.trim(),
+            jenis: document.getElementById('jenis').value,
+            jumlahKeluarga: document.getElementById('jumlahKeluarga').value.trim(),
+            luas: currentArea ? currentArea.toFixed(2) : '0',
+            koordinat: currentCoords
+        };
+        clearInvalid();
+        var errors = [];
+        if (!data.noBangunan) { errors.push('No Bangunan'); markInvalid('noBangunan'); }
+        if (!data.nama) { errors.push('Nama Penghuni'); markInvalid('nama'); }
+        if (!data.alamat) { errors.push('Alamat'); markInvalid('alamat'); }
+        if (!/^\d{1,3}\/\d{1,3}$/.test(data.rtRw)) { errors.push('RT/RW (format 02/05)'); markInvalid('rtRw'); }
+        if (!data.jenis) { errors.push('Jenis Bangunan'); markInvalid('jenis'); }
+        var kk = parseInt(data.jumlahKeluarga, 10);
+        if (!kk || kk < 1) { errors.push('Jumlah Keluarga'); markInvalid('jumlahKeluarga'); }
+        if (errors.length) { alert('Lengkapi / perbaiki: ' + errors.join(', ')); return; }
+        if (!editId && !currentCoords) {
+            alert('Gambar poligon bangunan di peta terlebih dahulu menggunakan tool draw!');
+            return;
+        }
+        data.jumlahKeluarga = kk;
+
+        var run = editId ? google.script.run.updateData(editId, data)
+                         : google.script.run.saveData(data);
+        run.withSuccessHandler(function (res) {
+            alert(res);
+            resetForm();
+            loadAll();
+        }).withFailureHandler(function (err) {
+            alert('Gagal menyimpan: ' + err.message);
+        });
+    }
+
+    loadAll();
+</script>
 </body>
 </html>

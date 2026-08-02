@@ -16,6 +16,10 @@ Aplikasi pemetaan rumah penduduk berbasis web menggunakan **Google Apps Script**
 7. Klik **Deploy**.
 
 ## Fitur
-- Peta OpenStreetMap interaktif.
+- Peta OpenStreetMap interaktif dengan Leaflet.js.
 - Gambar poligon untuk mengukur luas bangunan (Leaflet.draw).
-- Simpan data penghuni dan luas ke Spreadsheet secara *real-time*.
+- Form lengkap dengan validasi (No. bangunan, nama, alamat, RT/RW, jenis bangunan, jumlah keluarga).
+- Simpan, edit, dan hapus data penghuni & luas secara *real-time* ke Spreadsheet.
+- Tampilan semua bangunan di peta sebagai poligon berwarna sesuai jenis bangunan.
+- Dashboard statistik: jumlah bangunan, total & rata-rata luas, jumlah keluarga, dan grafik sebaran jenis bangunan.
+- Pencarian teks (nama/alamat/no bangunan) dan filter berdasarkan jenis bangunan & RT/RW.
