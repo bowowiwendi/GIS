@@ -9,7 +9,7 @@ Aplikasi pemetaan rumah penduduk berbasis web menggunakan **Google Apps Script**
 - `.clasp.json`: Konfigurasi [clasp](https://github.com/google/clasp) untuk push langsung ke Apps Script.
 
 ## Aplikasi
-- URL aplikasi terbaru (v2): https://script.google.com/macros/s/AKfycbyrnOoFUTSnuEQ2H0B-9-z-zwcY6cDMGK-77q8IlGdm7i67ld0J_GIVETvgQwmVE2Ds/exec
+- URL aplikasi terbaru (v2): https://script.google.com/macros/s/AKfycbx4hPHYHvMTDHxOCWrYqwBpCVT6c55DoN9urIODqlhvYZ-9gQlMl9fb7Ddrg3PhsAiN/exec
 
 ## Cara Deploy (via clasp)
 ```bash

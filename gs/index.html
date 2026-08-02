@@ -5,6 +5,7 @@
     <title>GIS Desa - Pemetaan Bangunan</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css"/>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet-control-geocoder@2.4.0/dist/Control.Geocoder.min.css"/>
     <style>
         * { box-sizing: border-box; }
         body { font-family: 'Segoe UI', Arial, sans-serif; margin: 0; background: #f4f6f8; color: #222; }
@@ -28,6 +29,7 @@
         input.invalid, select.invalid { border-color: #dc3545; }
         .area-info { grid-column: 1 / -1; background: #e8f5e9; padding: 10px; border-radius: 6px; font-size: 14px; }
         button { padding: 10px 18px; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; }
+        .leaflet-control-locate { width: 34px; height: 34px; background: #fff; border: 2px solid rgba(0,0,0,.2); border-radius: 4px; cursor: pointer; font-size: 16px; line-height: 1; display: flex; align-items: center; justify-content: center; }
         .btn-primary { background: #28a745; color: #fff; }
         .btn-warning { background: #ffc107; color: #333; }
         .btn-danger { background: #dc3545; color: #fff; }
@@ -124,11 +126,57 @@
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
+<script src="https://unpkg.com/leaflet-control-geocoder@2.4.0/dist/Control.Geocoder.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script>
     var map = L.map('map').setView([-6.2000, 106.8166], 15);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 })
-        .addTo(map);
+
+    var satellite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+        maxZoom: 19,
+        attribution: 'Tiles &copy; Esri, Maxar, Earthstar Geographics'
+    });
+    var street = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19,
+        attribution: '&copy; OpenStreetMap'
+    });
+    satellite.addTo(map);
+    L.control.layers({ 'Satelit': satellite, 'Peta Jalan': street }, null, { position: 'topright' }).addTo(map);
+
+    L.control.geocoder({
+        defaultMarkGeocode: true,
+        placeholder: 'Cari lokasi...',
+        errorMessage: 'Lokasi tidak ditemukan'
+    }).on('markgeocode', function (e) {
+        map.fitBounds(e.geocode.bbox);
+    }).addTo(map);
+
+    var locateBtn = L.control({ position: 'topleft' });
+    locateBtn.onAdd = function () {
+        var btn = L.DomUtil.create('button', 'leaflet-bar');
+        btn.className = 'leaflet-control-locate';
+        btn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24"><path fill="#333" d="M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8zm8.94 3A9 9 0 0 0 13 3.06V1h-2v2.06A9 9 0 0 0 3.06 11H1v2h2.06A9 9 0 0 0 11 20.94V23h2v-2.06A9 9 0 0 0 20.94 13H23v-2h-2.06zM12 19a7 7 0 1 1 0-14 7 7 0 0 1 0 14z"/></svg>';
+        btn.title = 'Posisi saya';
+        L.DomEvent.disableClickPropagation(btn);
+        L.DomEvent.addListener(btn, 'click', getMyLocation);
+        return btn;
+    };
+    locateBtn.addTo(map);
+
+    var myLocationMarker = null;
+    function getMyLocation() {
+        if (!navigator.geolocation) { alert('Geolokasi tidak didukung browser ini.'); return; }
+        map.locate({ setView: true, maxZoom: 17 });
+    }
+    map.on('locationfound', function (e) {
+        if (myLocationMarker) map.removeLayer(myLocationMarker);
+        myLocationMarker = L.circleMarker(e.latlng, { radius: 9, color: '#1976d2', fillColor: '#42a5f5', fillOpacity: 0.7, weight: 2 })
+            .bindPopup('Lokasi Anda saat ini<br>Akurasi: ' + Math.round(e.accuracy) + ' m')
+            .addTo(map)
+            .openPopup();
+    });
+    map.on('locationerror', function (e) {
+        alert('Tidak dapat menemukan posisi Anda: ' + (e.message || 'izin lokasi ditolak'));
+    });
 
     var drawnItems = new L.FeatureGroup();
     map.addLayer(drawnItems);
