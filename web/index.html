@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>GIS Desa - Input Bangunan</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css"/>
+    <style>
+        #map { height: 400px; width: 100%; margin-bottom: 10px; }
+        .form-group { margin-bottom: 10px; }
+        label { display: block; font-weight: bold; }
+        input { width: 100%; padding: 8px; box-sizing: border-box; }
+        button { padding: 10px 20px; background: #28a745; color: white; border: none; cursor: pointer; }
+    </style>
+</head>
+<body>
+    <h3>Pemetaan Bangunan</h3>
+    <div id="map"></div>
+    
+    <div class="form-group">
+        <label>No Bangunan:</label>
+        <input type="text" id="noBangunan">
+    </div>
+    <div class="form-group">
+        <label>Nama Penghuni:</label>
+        <input type="text" id="nama">
+    </div>
+    <div class="form-group">
+        <label>Alamat:</label>
+        <input type="text" id="alamat">
+    </div>
+    <p>Luas (m²): <span id="area">0</span></p>
+    <button onclick="submitData()">Simpan Data</button>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
+    <script>
+        var map = L.map('map').setView([-6.2000, 106.8166], 15);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+
+        var drawnItems = new L.FeatureGroup();
+        map.addLayer(drawnItems);
+        var drawControl = new L.Control.Draw({ edit: { featureGroup: drawnItems }, draw: { polygon: true, marker: false, circle: false, polyline: false, rectangle: true } });
+        map.addControl(drawControl);
+
+        var currentCoords = "";
+        map.on(L.Draw.Event.CREATED, function (e) {
+            drawnItems.clearLayers();
+            var layer = e.layer;
+            drawnItems.addLayer(layer);
+            var area = L.GeometryUtil.geodesicArea(layer.getLatLngs()[0]);
+            document.getElementById('area').innerText = (area).toFixed(2);
+            currentCoords = JSON.stringify(layer.getLatLngs()[0]);
+        });
+
+        function submitData() {
+            var data = {
+                noBangunan: document.getElementById('noBangunan').value,
+                nama: document.getElementById('nama').value,
+                alamat: document.getElementById('alamat').value,
+                luas: document.getElementById('area').innerText,
+                koordinat: currentCoords
+            };
+            google.script.run.withSuccessHandler(function(res){ alert(res); }).saveData(data);
+        }
+    </script>
+</body>
+</html>
