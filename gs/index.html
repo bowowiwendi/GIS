@@ -211,7 +211,7 @@
                     <input type="text" id="rw" placeholder="05" maxlength="3">
                 </div>
                 <div class="form-group">
-                    <label>Nama Keluarga * (satu nama per baris)</label>
+                    <label>Nama Keluarga Lain (opsional - satu nama per baris)</label>
                     <textarea id="keluarga" rows="4" placeholder="contoh:&#10;Budi Santoso&#10;Siti Aminah&#10;Andi Prasetyo"></textarea>
                 </div>
                 <div class="loc-card">
@@ -490,7 +490,6 @@
         if (!/^\d{1,3}$/.test(data.rt)) { errors.push('RT'); markInvalid('rt'); }
         if (!/^\d{1,3}$/.test(data.rw)) { errors.push('RW'); markInvalid('rw'); }
         if (!data.jenis) { errors.push('Jenis Bangunan'); markInvalid('jenis'); }
-        if (!keluarga.length) { errors.push('Nama Keluarga'); markInvalid('keluarga'); }
         if (errors.length) { toast('Lengkapi / perbaiki: ' + errors.join(', '), 'error'); return; }
         if (!data.koordinat) { toast('Pilih lokasi di peta terlebih dahulu!', 'error'); return; }
 

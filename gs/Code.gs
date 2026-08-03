@@ -80,7 +80,7 @@ function getData() {
 }
 
 function saveData(data) {
-  if (!data.noBangunan || !data.nama || !data.alamat || !data.rt || !data.rw || !data.jenis || !data.keluarga || !data.koordinat) {
+  if (!data.noBangunan || !data.nama || !data.alamat || !data.rt || !data.rw || !data.jenis || !data.koordinat) {
     throw new Error('Lengkapi semua field dan gambar poligon bangunan terlebih dahulu!');
   }
   var sheet = getSheet_();
@@ -155,7 +155,7 @@ function getStats() {
   data.forEach(function (d) {
     var luas = parseFloat(d.luas) || 0;
     totalLuas += luas;
-    totalKeluarga += countKeluarga_(d.keluarga);
+    totalKeluarga += Math.max(countKeluarga_(d.keluarga), 1);
     var jenis = d.jenis || 'Lainnya';
     var rt = d.rt ? 'RT ' + d.rt : '-';
     perJenis[jenis] = (perJenis[jenis] || 0) + 1;
