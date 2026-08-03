@@ -40,6 +40,7 @@
 
         .btn { padding: 9px 16px; border: none; border-radius: 8px; cursor: pointer; font-size: 14px; font-weight: 600; display: inline-flex; align-items: center; gap: 7px; transition: filter .15s; }
         .btn:hover { filter: brightness(1.08); }
+        .btn:disabled { opacity: .6; cursor: not-allowed; filter: none; }
         .btn-primary { background: #0d9488; color: #fff; }
         .btn-warning { background: #f59e0b; color: #fff; }
         .btn-danger { background: #dc2626; color: #fff; }
@@ -278,7 +279,7 @@
         <p id="confirmMsg" class="confirm-msg"></p>
         <div class="confirm-actions">
             <button class="btn btn-secondary" onclick="closeConfirm()">Batal</button>
-            <button class="btn btn-danger" id="confirmOkBtn">Ya, Lanjutkan</button>
+            <button class="btn btn-danger" id="confirmOkBtn" onclick="confirmOk()">Ya, Lanjutkan</button>
         </div>
     </div>
 </div>
@@ -535,6 +536,9 @@
         if (errors.length) { toast('Lengkapi / perbaiki: ' + errors.join(', '), 'error'); return; }
         if (!data.koordinat) { toast('Pilih lokasi di peta terlebih dahulu!', 'error'); return; }
 
+        var btn = document.getElementById('btnSubmit');
+        btn.disabled = true;
+        btn.innerText = 'Menyimpan...';
         var run = editId ? google.script.run.updateData(editId, data)
                          : google.script.run.saveData(data);
         run.withSuccessHandler(function (res) {
@@ -543,6 +547,8 @@
             loadAll();
             showView('data');
         }).withFailureHandler(function (err) {
+            btn.disabled = false;
+            btn.innerText = editId ? 'Perbarui Data' : 'Simpan Data';
             toast('Gagal menyimpan: ' + err.message, 'error');
         });
     }
