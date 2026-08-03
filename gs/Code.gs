@@ -23,16 +23,11 @@ function getSheet_() {
 // Migrasi otomatis: menambahkan kolom ID, memisahkan RT dan RW, mengganti Jumlah_Keluarga -> Nama_Keluarga
 function ensureStructure_() {
   var sheet = getSheet_();
+  var head = sheet.getRange(1, 1, 1, COLUMNS.length).getValues()[0] || [];
+  if (String(head[0] || '').trim() === 'ID' && head.indexOf('RT') > -1 && head.indexOf('RW') > -1) return;
   var values = sheet.getDataRange().getValues();
-  if (values.length === 0) {
-    sheet.appendRow(COLUMNS);
-    return;
-  }
-  var head = values[0].map(function (h) { return String(h || '').trim(); });
-  if (head[0] === 'ID' && head.indexOf('RT') > -1 && head.indexOf('RW') > -1) return;
-
   var col = {};
-  head.forEach(function (h, i) { col[h] = i; });
+  values[0].forEach(function (h, i) { col[String(h || '').trim()] = i; });
   var rows = [COLUMNS];
   for (var i = 1; i < values.length; i++) {
     var get = function (name) { return col[name] !== undefined ? values[i][col[name]] : ''; };
@@ -84,7 +79,6 @@ function saveData(data) {
     throw new Error('Lengkapi semua field dan gambar poligon bangunan terlebih dahulu!');
   }
   var sheet = getSheet_();
-  ensureStructure_();
   sheet.appendRow([
     Utilities.getUuid().slice(0, 8),
     new Date(),
@@ -103,13 +97,14 @@ function saveData(data) {
 
 function updateData(id, data) {
   var sheet = getSheet_();
-  var values = sheet.getDataRange().getValues();
-  for (var i = 1; i < values.length; i++) {
-    if (String(values[i][0]) === String(id)) {
-      var row = i + 1;
+  var ids = sheet.getRange(2, 1, Math.max(sheet.getLastRow() - 1, 0), 1).getValues();
+  for (var i = 0; i < ids.length; i++) {
+    if (String(ids[i][0]) === String(id)) {
+      var row = i + 2;
+      var old = sheet.getRange(row, 1, 1, COLUMNS.length).getValues()[0];
       sheet.getRange(row, 1, 1, COLUMNS.length).setValues([[
         id,
-        values[i][1] || new Date(),
+        old[1] || new Date(),
         data.noBangunan,
         data.luas,
         data.nama,
@@ -128,10 +123,10 @@ function updateData(id, data) {
 
 function deleteData(id) {
   var sheet = getSheet_();
-  var values = sheet.getDataRange().getValues();
-  for (var i = 1; i < values.length; i++) {
-    if (String(values[i][0]) === String(id)) {
-      sheet.deleteRow(i + 1);
+  var ids = sheet.getRange(2, 1, Math.max(sheet.getLastRow() - 1, 0), 1).getValues();
+  for (var i = 0; i < ids.length; i++) {
+    if (String(ids[i][0]) === String(id)) {
+      sheet.deleteRow(i + 2);
       return 'Data berhasil dihapus!';
     }
   }
