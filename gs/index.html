@@ -73,7 +73,16 @@
 
         .modal { position: fixed; inset: 0; background: rgba(15, 23, 42, .55); z-index: 1000; display: none; align-items: center; justify-content: center; padding: 12px; }
         .modal.open { display: flex; }
+        .modal.open { animation: fadeIn .15s ease-out; }
+        .modal-box { animation: modalIn .18s ease-out; }
+        @keyframes modalIn { from { transform: scale(.96) translateY(8px); opacity: 0; } to { transform: scale(1) translateY(0); opacity: 1; } }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
         .modal-box { background: #fff; border-radius: 14px; width: 100%; max-width: 960px; height: 92vh; max-height: 700px; display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 20px 60px rgba(0,0,0,.3); }
+        .confirm-box { max-width: 420px; height: auto; padding: 22px; }
+        .confirm-head { display: flex; align-items: center; gap: 10px; }
+        .confirm-head h4 { font-size: 16px; color: #111827; }
+        .confirm-msg { font-size: 14px; color: #374151; line-height: 1.55; margin: 14px 0 20px; }
+        .confirm-actions { display: flex; justify-content: flex-end; gap: 10px; }
         .modal-head { display: flex; gap: 8px; padding: 10px 12px; border-bottom: 1px solid #e5e7eb; align-items: center; flex-wrap: wrap; }
         .modal-head input { flex: 1; min-width: 160px; padding: 9px 12px; border: 1.5px solid #d1d5db; border-radius: 8px; font-size: 14px; }
         .modal-head .locate-icon { width: 38px; height: 38px; border-radius: 8px; border: 1.5px solid #d1d5db; background: #fff; cursor: pointer; display: flex; align-items: center; justify-content: center; }
@@ -260,6 +269,20 @@
     </div>
 </div>
 
+<div id="confirmModal" class="modal">
+    <div class="modal-box confirm-box">
+        <div class="confirm-head">
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="#dc2626"><path d="M12 2L1 21h22L12 2zm1 14h-2v2h2v-2zm0-6h-2v4h2v-4z"/></svg>
+            <h4>Konfirmasi</h4>
+        </div>
+        <p id="confirmMsg" class="confirm-msg"></p>
+        <div class="confirm-actions">
+            <button class="btn btn-secondary" onclick="closeConfirm()">Batal</button>
+            <button class="btn btn-danger" id="confirmOkBtn">Ya, Lanjutkan</button>
+        </div>
+    </div>
+</div>
+
 <div id="toast"></div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -287,6 +310,24 @@
         t.classList.add('show');
         clearTimeout(toast._t);
         toast._t = setTimeout(function () { t.classList.remove('show'); }, 4000);
+    }
+
+    var confirmCb = null;
+    function confirmDialog(msg, okLabel, onOk) {
+        document.getElementById('confirmMsg').innerText = msg;
+        document.getElementById('confirmOkBtn').innerText = okLabel || 'Ya, Lanjutkan';
+        confirmCb = onOk;
+        document.getElementById('confirmModal').classList.add('open');
+    }
+    function closeConfirm() {
+        confirmCb = null;
+        document.getElementById('confirmModal').classList.remove('open');
+    }
+    function confirmOk() {
+        var cb = confirmCb;
+        confirmCb = null;
+        document.getElementById('confirmModal').classList.remove('open');
+        if (cb) cb();
     }
 
     function showView(v) {
@@ -445,11 +486,12 @@
     function deleteBuilding(id) {
         var b = allData.filter(function (x) { return x.id === id; })[0];
         var label = b ? (b.noBangunan + ' - ' + b.nama) : 'ini';
-        if (!confirm('Hapus bangunan "' + label + '"? Data tidak dapat dikembalikan.')) return;
-        google.script.run
-            .withSuccessHandler(function (res) { toast(res, 'success'); loadAll(); })
-            .withFailureHandler(function (err) { toast('Gagal menghapus: ' + err.message, 'error'); })
-            .deleteData(id);
+        confirmDialog('Hapus bangunan "' + label + '"? Data tidak dapat dikembalikan.', 'Hapus', function () {
+            google.script.run
+                .withSuccessHandler(function (res) { toast(res, 'success'); loadAll(); })
+                .withFailureHandler(function (err) { toast('Gagal menghapus: ' + err.message, 'error'); })
+                .deleteData(id);
+        });
     }
 
     function clearInvalid() {
