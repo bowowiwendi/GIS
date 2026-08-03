@@ -1,7 +1,7 @@
 // ID Spreadsheet
 var ssId = '1riqVNsmz_tOB9uyZFI1GmT4qV96ZMyJowHyYKnJ44HA';
 var SHEET_NAME = 'Data_Bangunan';
-var COLUMNS = ['ID', 'Timestamp', 'No_Bangunan', 'Luas_m2', 'Nama_Penghuni', 'Alamat', 'RT_RW', 'Jenis_Bangunan', 'Jumlah_Keluarga', 'Koordinat_JSON'];
+var COLUMNS = ['ID', 'Timestamp', 'No_Bangunan', 'Luas_m2', 'Nama_Penghuni', 'Alamat', 'RT', 'RW', 'Jenis_Bangunan', 'Nama_Keluarga', 'Koordinat_JSON'];
 
 function doGet() {
   return HtmlService.createTemplateFromFile('index')
@@ -20,7 +20,7 @@ function getSheet_() {
   return sheet;
 }
 
-// Migrasi otomatis: menambahkan kolom ID untuk data lama agar bisa diedit/dihapus
+// Migrasi otomatis: menambahkan kolom ID, memisahkan RT dan RW, mengganti Jumlah_Keluarga -> Nama_Keluarga
 function ensureStructure_() {
   var sheet = getSheet_();
   var values = sheet.getDataRange().getValues();
@@ -28,11 +28,28 @@ function ensureStructure_() {
     sheet.appendRow(COLUMNS);
     return;
   }
-  if (values[0][0] === 'ID') return;
-  var headers = ['ID'].concat(values[0]);
-  var rows = [headers];
+  var head = values[0].map(function (h) { return String(h || '').trim(); });
+  if (head[0] === 'ID' && head.indexOf('RT') > -1 && head.indexOf('RW') > -1) return;
+
+  var col = {};
+  head.forEach(function (h, i) { col[h] = i; });
+  var rows = [COLUMNS];
   for (var i = 1; i < values.length; i++) {
-    rows.push([Utilities.getUuid().slice(0, 8)].concat(values[i]));
+    var get = function (name) { return col[name] !== undefined ? values[i][col[name]] : ''; };
+    var rtRw = String(get('RT_RW') || '').split('/');
+    rows.push([
+      get('ID') || Utilities.getUuid().slice(0, 8),
+      get('Timestamp'),
+      get('No_Bangunan'),
+      get('Luas_m2'),
+      get('Nama_Penghuni'),
+      get('Alamat'),
+      rtRw[0] || '',
+      rtRw[1] || '',
+      get('Jenis_Bangunan'),
+      get('Jumlah_Keluarga'),
+      get('Koordinat_JSON')
+    ]);
   }
   sheet.clearContents();
   sheet.getRange(1, 1, rows.length, rows[0].length).setValues(rows);
@@ -52,17 +69,18 @@ function getData() {
       luas: r[3],
       nama: r[4],
       alamat: r[5],
-      rtRw: r[6] || '',
-      jenis: r[7] || '',
-      jumlahKeluarga: r[8] || '',
-      koordinat: r[9] || ''
+      rt: String(r[6] || ''),
+      rw: String(r[7] || ''),
+      jenis: r[8] || '',
+      keluarga: String(r[9] || ''),
+      koordinat: r[10] || ''
     });
   }
   return result;
 }
 
 function saveData(data) {
-  if (!data.noBangunan || !data.nama || !data.alamat || !data.rtRw || !data.jenis || !data.jumlahKeluarga || !data.koordinat) {
+  if (!data.noBangunan || !data.nama || !data.alamat || !data.rt || !data.rw || !data.jenis || !data.keluarga || !data.koordinat) {
     throw new Error('Lengkapi semua field dan gambar poligon bangunan terlebih dahulu!');
   }
   var sheet = getSheet_();
@@ -74,9 +92,10 @@ function saveData(data) {
     data.luas,
     data.nama,
     data.alamat,
-    data.rtRw,
+    data.rt,
+    data.rw,
     data.jenis,
-    data.jumlahKeluarga,
+    data.keluarga,
     data.koordinat
   ]);
   return 'Data berhasil disimpan!';
@@ -95,9 +114,10 @@ function updateData(id, data) {
         data.luas,
         data.nama,
         data.alamat,
-        data.rtRw,
+        data.rt,
+        data.rw,
         data.jenis,
-        data.jumlahKeluarga,
+        data.keluarga,
         data.koordinat
       ]]);
       return 'Data berhasil diperbarui!';
@@ -118,6 +138,14 @@ function deleteData(id) {
   throw new Error('Data tidak ditemukan!');
 }
 
+// Menghitung jumlah keluarga: mendukung data lama (angka) dan baru (nama dipisah baris)
+function countKeluarga_(v) {
+  var s = String(v || '').trim();
+  if (!s) return 0;
+  if (/^\d+$/.test(s)) return parseInt(s, 10);
+  return s.split(/[\n;]/).map(function (x) { return x.trim(); }).filter(function (x) { return x; }).length;
+}
+
 function getStats() {
   var data = getData();
   var perJenis = {};
@@ -127,9 +155,9 @@ function getStats() {
   data.forEach(function (d) {
     var luas = parseFloat(d.luas) || 0;
     totalLuas += luas;
-    totalKeluarga += parseInt(d.jumlahKeluarga, 10) || 0;
+    totalKeluarga += countKeluarga_(d.keluarga);
     var jenis = d.jenis || 'Lainnya';
-    var rt = d.rtRw || '-';
+    var rt = d.rt ? 'RT ' + d.rt : '-';
     perJenis[jenis] = (perJenis[jenis] || 0) + 1;
     perRt[rt] = (perRt[rt] || 0) + 1;
   });

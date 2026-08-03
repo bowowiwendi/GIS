@@ -61,8 +61,10 @@
         .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
         .form-group label { display: block; font-weight: 600; font-size: 13px; margin-bottom: 5px; color: #374151; }
         .form-group input, .form-group select { width: 100%; padding: 10px 12px; border: 1.5px solid #d1d5db; border-radius: 8px; font-size: 14px; }
-        .form-group input:focus, .form-group select:focus { outline: none; border-color: #0d9488; }
-        .form-group input.invalid, .form-group select.invalid { border-color: #dc2626; }
+        .form-group input:focus, .form-group select:focus, .form-group textarea:focus { outline: none; border-color: #0d9488; }
+        .form-group input.invalid, .form-group select.invalid, .form-group textarea.invalid { border-color: #dc2626; }
+        .form-group textarea { width: 100%; padding: 10px 12px; border: 1.5px solid #d1d5db; border-radius: 8px; font-size: 14px; resize: vertical; font-family: inherit; }
+        .gis-pin { background: transparent !important; border: none !important; }
         .loc-card { grid-column: 1 / -1; border: 2px dashed #0d9488; border-radius: 10px; background: #f0fdfa; padding: 12px 16px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; }
         .loc-card .info { font-size: 14px; color: #065f46; }
         .loc-card .info strong { color: #0f766e; }
@@ -151,7 +153,8 @@
             <div class="toolbar">
                 <input type="text" id="searchInput" placeholder="Cari nama / alamat / no bangunan...">
                 <select id="filterJenis"><option value="">Semua Jenis</option></select>
-                <select id="filterRt"><option value="">Semua RT/RW</option></select>
+                <select id="filterRt"><option value="">Semua RT</option></select>
+                <select id="filterRw"><option value="">Semua RW</option></select>
                 <button class="btn btn-secondary" onclick="resetFilter()">Reset</button>
                 <button class="btn btn-primary" onclick="startAdd()">
                     <svg viewBox="0 0 24 24" fill="currentColor"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
@@ -161,7 +164,7 @@
             <div class="wrap">
                 <table id="dataTable">
                     <thead>
-                        <tr><th>No</th><th>Nama</th><th>Alamat</th><th>RT/RW</th><th>Jenis</th><th>Keluarga</th><th>Luas m²</th><th>Aksi</th></tr>
+                        <tr><th>No</th><th>Nama</th><th>Alamat</th><th>RT</th><th>RW</th><th>Jenis</th><th>Keluarga</th><th>Luas m²</th><th>Aksi</th></tr>
                     </thead>
                     <tbody id="dataBody"></tbody>
                 </table>
@@ -200,12 +203,16 @@
                     <input type="text" id="alamat" placeholder="contoh: Jl. Merdeka No. 5">
                 </div>
                 <div class="form-group">
-                    <label>RT/RW * (format 02/05)</label>
-                    <input type="text" id="rtRw" placeholder="02/05">
+                    <label>RT * (contoh: 02)</label>
+                    <input type="text" id="rt" placeholder="02" maxlength="3">
                 </div>
                 <div class="form-group">
-                    <label>Jumlah Keluarga *</label>
-                    <input type="number" id="jumlahKeluarga" min="1" placeholder="1">
+                    <label>RW * (contoh: 05)</label>
+                    <input type="text" id="rw" placeholder="05" maxlength="3">
+                </div>
+                <div class="form-group">
+                    <label>Nama Keluarga * (satu nama per baris)</label>
+                    <textarea id="keluarga" rows="4" placeholder="contoh:&#10;Budi Santoso&#10;Siti Aminah&#10;Andi Prasetyo"></textarea>
                 </div>
                 <div class="loc-card">
                     <div class="info">
@@ -270,7 +277,7 @@
     var editId = null;
     var formState = { coords: '', area: 0 };
     var modalState = { coords: '', area: 0 };
-    var modalMap = null, modalDrawn = null, modalPin = null, searchMarker = null;
+    var modalMap = null, modalDrawn = null, modalPin = null, searchMarker = null, locationCircle = null;
     var modalInit = false;
 
     function toast(msg, type) {
@@ -329,34 +336,40 @@
         if (!recent.length) html = '<div class="empty">Belum ada data.</div>';
         recent.forEach(function (b) {
             var d = b.timestamp ? b.timestamp.split(' ')[0] : '';
-            html += '<div><span><b>' + (b.noBangunan || '-') + '</b> &middot; ' + (b.nama || '-') + ' &middot; ' + (b.alamat || '-') + '</span><span class="date">' + (b.rtRw || '-') + ' &middot; ' + d + '</span></div>';
+            html += '<div><span><b>' + (b.noBangunan || '-') + '</b> &middot; ' + (b.nama || '-') + ' &middot; ' + (b.alamat || '-') + '</span><span class="date">RT ' + (b.rt || '-') + ' / RW ' + (b.rw || '-') + ' &middot; ' + d + '</span></div>';
         });
         document.getElementById('recentList').innerHTML = html;
     }
 
     function renderFilters() {
-        var jenis = {}, rt = {};
+        var jenis = {}, rt = {}, rw = {};
         allData.forEach(function (b) {
             if (b.jenis) jenis[b.jenis] = 1;
-            if (b.rtRw) rt[b.rtRw] = 1;
+            if (b.rt) rt[b.rt] = 1;
+            if (b.rw) rw[b.rw] = 1;
         });
         var selJ = document.getElementById('filterJenis');
         var selR = document.getElementById('filterRt');
+        var selW = document.getElementById('filterRw');
         selJ.innerHTML = '<option value="">Semua Jenis</option>';
-        selR.innerHTML = '<option value="">Semua RT/RW</option>';
+        selR.innerHTML = '<option value="">Semua RT</option>';
+        selW.innerHTML = '<option value="">Semua RW</option>';
         Object.keys(jenis).sort().forEach(function (k) { selJ.innerHTML += '<option>' + k + '</option>'; });
         Object.keys(rt).sort().forEach(function (k) { selR.innerHTML += '<option>' + k + '</option>'; });
+        Object.keys(rw).sort().forEach(function (k) { selW.innerHTML += '<option>' + k + '</option>'; });
     }
 
     function renderTable() {
         var q = document.getElementById('searchInput').value.toLowerCase();
         var j = document.getElementById('filterJenis').value;
         var r = document.getElementById('filterRt').value;
+        var w = document.getElementById('filterRw').value;
         var list = allData.filter(function (b) {
             var text = (b.nama + ' ' + b.alamat + ' ' + b.noBangunan).toLowerCase();
             if (q && text.indexOf(q) === -1) return false;
             if (j && b.jenis !== j) return false;
-            if (r && b.rtRw !== r) return false;
+            if (r && b.rt !== r) return false;
+            if (w && b.rw !== w) return false;
             return true;
         });
         var body = document.getElementById('dataBody');
@@ -364,25 +377,29 @@
         var html = '';
         list.forEach(function (b) {
             var color = JENIS_COLORS[b.jenis] || '#6b7280';
+            var kl = String(b.keluarga || '').split(/\n/).map(function (s) { return s.trim(); }).filter(Boolean);
+            var klTxt = kl.join(', ');
             html += '<tr>' +
                 '<td><b>' + (b.noBangunan || '-') + '</b></td>' +
                 '<td>' + (b.nama || '-') + '</td>' +
                 '<td>' + (b.alamat || '-') + '</td>' +
-                '<td>' + (b.rtRw || '-') + '</td>' +
+                '<td>' + (b.rt || '-') + '</td>' +
+                '<td>' + (b.rw || '-') + '</td>' +
                 '<td><span class="chip" style="background:' + color + '">' + (b.jenis || '-') + '</span></td>' +
-                '<td>' + (b.jumlahKeluarga || '-') + '</td>' +
+                '<td title="' + klTxt + '">' + (klTxt || '-') + (kl.length > 1 ? ' <small>(' + kl.length + ')</small>' : '') + '</td>' +
                 '<td>' + (b.luas || '0') + '</td>' +
                 '<td><button class="btn btn-small btn-outline" onclick="editBuilding(\'' + b.id + '\')">Edit</button> ' +
                 '<button class="btn btn-small btn-danger" onclick="deleteBuilding(\'' + b.id + '\')">Hapus</button></td>' +
                 '</tr>';
         });
-        body.innerHTML = html || '<tr><td colspan="8" class="empty">Tidak ada data yang cocok.</td></tr>';
+        body.innerHTML = html || '<tr><td colspan="9" class="empty">Tidak ada data yang cocok.</td></tr>';
     }
 
     function resetFilter() {
         document.getElementById('searchInput').value = '';
         document.getElementById('filterJenis').value = '';
         document.getElementById('filterRt').value = '';
+        document.getElementById('filterRw').value = '';
         renderTable();
     }
 
@@ -393,7 +410,7 @@
 
     function resetForm() {
         editId = null;
-        ['noBangunan', 'nama', 'alamat', 'rtRw', 'jumlahKeluarga'].forEach(function (id) { document.getElementById(id).value = ''; });
+        ['noBangunan', 'nama', 'alamat', 'rt', 'rw', 'keluarga'].forEach(function (id) { document.getElementById(id).value = ''; });
         document.getElementById('jenis').value = '';
         formState = { coords: '', area: 0 };
         updateLocCard();
@@ -411,9 +428,10 @@
         document.getElementById('noBangunan').value = b.noBangunan || '';
         document.getElementById('nama').value = b.nama || '';
         document.getElementById('alamat').value = b.alamat || '';
-        document.getElementById('rtRw').value = b.rtRw || '';
+        document.getElementById('rt').value = b.rt || '';
+        document.getElementById('rw').value = b.rw || '';
         document.getElementById('jenis').value = b.jenis || '';
-        document.getElementById('jumlahKeluarga').value = b.jumlahKeluarga || '';
+        document.getElementById('keluarga').value = b.keluarga || '';
         formState = { coords: b.koordinat || '', area: parseFloat(b.luas) || 0 };
         updateLocCard();
         clearInvalid();
@@ -452,13 +470,15 @@
     }
 
     function submitForm() {
+        var keluarga = document.getElementById('keluarga').value.split(/\n/).map(function (s) { return s.trim(); }).filter(Boolean);
         var data = {
             noBangunan: document.getElementById('noBangunan').value.trim(),
             nama: document.getElementById('nama').value.trim(),
             alamat: document.getElementById('alamat').value.trim(),
-            rtRw: document.getElementById('rtRw').value.trim(),
+            rt: document.getElementById('rt').value.trim(),
+            rw: document.getElementById('rw').value.trim(),
             jenis: document.getElementById('jenis').value,
-            jumlahKeluarga: document.getElementById('jumlahKeluarga').value.trim(),
+            keluarga: keluarga.join('\n'),
             luas: formState.area ? formState.area.toFixed(2) : '0',
             koordinat: formState.coords
         };
@@ -467,13 +487,12 @@
         if (!data.noBangunan) { errors.push('No Bangunan'); markInvalid('noBangunan'); }
         if (!data.nama) { errors.push('Nama Penghuni'); markInvalid('nama'); }
         if (!data.alamat) { errors.push('Alamat'); markInvalid('alamat'); }
-        if (!/^\d{1,3}\/\d{1,3}$/.test(data.rtRw)) { errors.push('RT/RW (format 02/05)'); markInvalid('rtRw'); }
+        if (!/^\d{1,3}$/.test(data.rt)) { errors.push('RT'); markInvalid('rt'); }
+        if (!/^\d{1,3}$/.test(data.rw)) { errors.push('RW'); markInvalid('rw'); }
         if (!data.jenis) { errors.push('Jenis Bangunan'); markInvalid('jenis'); }
-        var kk = parseInt(data.jumlahKeluarga, 10);
-        if (!kk || kk < 1) { errors.push('Jumlah Keluarga'); markInvalid('jumlahKeluarga'); }
+        if (!keluarga.length) { errors.push('Nama Keluarga'); markInvalid('keluarga'); }
         if (errors.length) { toast('Lengkapi / perbaiki: ' + errors.join(', '), 'error'); return; }
         if (!data.koordinat) { toast('Pilih lokasi di peta terlebih dahulu!', 'error'); return; }
-        data.jumlahKeluarga = kk;
 
         var run = editId ? google.script.run.updateData(editId, data)
                          : google.script.run.saveData(data);
@@ -501,6 +520,38 @@
         } catch (e) { return null; }
     }
 
+    /* ---------- Helper pengukuran & penanda ---------- */
+
+    function calcArea(latlngs) {
+        var area = 0, rad = Math.PI / 180, R = 6378137;
+        for (var i = 0; i < latlngs.length; i++) {
+            var a = latlngs[i];
+            var b = latlngs[(i + 1) % latlngs.length];
+            area += (b.lng - a.lng) * rad * (2 + Math.sin(a.lat * rad) + Math.sin(b.lat * rad));
+        }
+        return Math.abs(area * R * R / 2);
+    }
+
+    function pinIcon(color) {
+        var fill = color || '#dc2626';
+        return L.divIcon({
+            className: 'gis-pin',
+            html: '<svg width="30" height="42" viewBox="0 0 24 24"><path fill="' + fill + '" stroke="#fff" stroke-width="1.5" d="M12 2a7 7 0 0 0-7 7c0 5.25 7 13 7 13s7-7.75 7-13a7 7 0 0 0-7-7zm0 9.5A2.5 2.5 0 1 1 12 6.5a2.5 2.5 0 0 1 0 5z"/></svg>',
+            iconSize: [30, 42],
+            iconAnchor: [15, 42],
+            popupAnchor: [0, -40]
+        });
+    }
+
+    function setModalPin(latlng, color) {
+        removeModalPin();
+        modalPin = L.marker(latlng, { icon: pinIcon(color) }).addTo(modalMap);
+        return modalPin;
+    }
+    function removeModalPin() { if (modalPin) { modalMap.removeLayer(modalPin); modalPin = null; } }
+    function removeSearchMarker() { if (searchMarker) { modalMap.removeLayer(searchMarker); searchMarker = null; } }
+    function removeLocationCircle() { if (locationCircle) { modalMap.removeLayer(locationCircle); locationCircle = null; } }
+
     function initModalMap() {
         modalMap = L.map('modalMap', { zoomControl: true });
         var sat = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
@@ -520,23 +571,58 @@
         });
         modalMap.addControl(dc);
 
-        modalMap.on(L.Draw.Event.CREATED, function (e) {
+        modalMap.on('draw:created', function (e) {
             modalDrawn.clearLayers();
             var layer = e.layer;
             modalDrawn.addLayer(layer);
-            modalState.area = L.GeometryUtil.geodesicArea(layer.getLatLngs()[0]);
+            modalState.area = calcArea(layer.getLatLngs()[0]);
             modalState.coords = JSON.stringify(layer.getLatLngs()[0]);
-            if (modalPin) { modalMap.removeLayer(modalPin); modalPin = null; }
+            removeModalPin();
+            removeSearchMarker();
+            removeLocationCircle();
+            layer.bindPopup('Luas: ' + modalState.area.toFixed(2) + ' m²').openPopup();
+            document.getElementById('modalHint').innerText = 'Poligon digambar, luas dihitung otomatis.';
+            updateModalFoot();
+        });
+        modalMap.on('draw:edited', function (e) {
+            e.layers.eachLayer(function (layer) {
+                modalState.area = calcArea(layer.getLatLngs()[0]);
+                modalState.coords = JSON.stringify(layer.getLatLngs()[0]);
+                layer.bindPopup('Luas: ' + modalState.area.toFixed(2) + ' m²');
+                updateModalFoot();
+            });
+        });
+        modalMap.on('draw:deleted', function () {
+            modalState = { coords: '', area: 0 };
+            document.getElementById('modalHint').innerText = 'Poligon dihapus. Gambar ulang untuk mengukur luas.';
             updateModalFoot();
         });
         modalMap.on('click', function (e) {
             if (modalDrawn.getLayers().length) return;
             modalState.area = 0;
             modalState.coords = JSON.stringify([{ lat: e.latlng.lat, lng: e.latlng.lng }]);
-            if (modalPin) modalMap.removeLayer(modalPin);
-            modalPin = L.circleMarker(e.latlng, { radius: 8, color: '#dc2626', fillColor: '#ef4444', fillOpacity: .6, weight: 2 }).addTo(modalMap);
+            setModalPin(e.latlng);
+            removeSearchMarker();
+            removeLocationCircle();
             document.getElementById('modalHint').innerText = 'Titik ditandai. Klik "Gunakan Lokasi Ini" untuk memakai titik ini.';
             updateModalFoot();
+        });
+        modalMap.on('locationfound', function (e) {
+            setModalPin(e.latlng, '#2563eb');
+            removeSearchMarker();
+            removeLocationCircle();
+            locationCircle = L.circle(e.latlng, {
+                radius: Math.max(e.accuracy / 2, 15),
+                color: '#2563eb', fillColor: '#3b82f6', fillOpacity: .15, weight: 1
+            }).addTo(modalMap);
+            modalState.area = 0;
+            modalState.coords = JSON.stringify([{ lat: e.latlng.lat, lng: e.latlng.lng }]);
+            document.getElementById('modalHint').innerText = 'Posisi Anda ditandai (akurasi ±' + Math.round(e.accuracy) + ' m).';
+            updateModalFoot();
+            toast('Posisi ditemukan. Klik "Gunakan Lokasi Ini" untuk memakainya.');
+        });
+        modalMap.on('locationerror', function (e) {
+            toast('Gagal menemukan posisi: ' + (e.message || 'periksa izin lokasi browser'), 'error');
         });
         modalInit = true;
     }
@@ -549,14 +635,16 @@
         if (!modalInit) initModalMap();
         modalState = { coords: formState.coords, area: formState.area };
         modalDrawn.clearLayers();
-        if (modalPin) { modalMap.removeLayer(modalPin); modalPin = null; }
-        if (searchMarker) { modalMap.removeLayer(searchMarker); searchMarker = null; }
+        removeModalPin();
+        removeSearchMarker();
+        removeLocationCircle();
         var pts = parseCoords(modalState.coords);
         if (pts && pts.length >= 3) {
-            L.polygon(pts, { color: '#0d9488', weight: 2, fillOpacity: .25 }).addTo(modalDrawn);
+            var pg = L.polygon(pts, { color: '#0d9488', weight: 2, fillOpacity: .25 }).addTo(modalDrawn);
+            pg.bindPopup('Luas: ' + modalState.area.toFixed(2) + ' m²');
             modalMap.fitBounds(L.latLngBounds(pts), { padding: [30, 30] });
         } else if (pts && pts.length === 1) {
-            modalPin = L.circleMarker(pts[0], { radius: 8, color: '#dc2626', fillColor: '#ef4444', fillOpacity: .6, weight: 2 }).addTo(modalMap);
+            setModalPin(pts[0]);
             modalMap.setView(pts[0], 17);
         }
         updateModalFoot();
@@ -582,8 +670,9 @@
     function clearModalPolygon() {
         modalDrawn.clearLayers();
         modalState = { coords: '', area: 0 };
-        if (modalPin) { modalMap.removeLayer(modalPin); modalPin = null; }
-        if (searchMarker) { modalMap.removeLayer(searchMarker); searchMarker = null; }
+        removeModalPin();
+        removeSearchMarker();
+        removeLocationCircle();
         updateModalFoot();
         document.getElementById('modalHint').innerText = 'Poligon dihapus. Gambar ulang atau klik peta untuk menandai titik.';
     }
@@ -591,7 +680,7 @@
     function getMyLocation() {
         if (!navigator.geolocation) { toast('Geolokasi tidak didukung browser ini.', 'error'); return; }
         toast('Mencari posisi Anda...');
-        modalMap.locate({ setView: true, maxZoom: 17, timeout: 12000 });
+        modalMap.locate({ setView: true, maxZoom: 17, timeout: 12000, enableHighAccuracy: true });
     }
 
     function searchLocation(q) {
@@ -648,12 +737,14 @@
         var center = [parseFloat(lat), parseFloat(lng)];
         if (bbox) modalMap.fitBounds(L.latLngBounds(JSON.parse(bbox)), { padding: [40, 40] });
         else modalMap.setView(center, 16);
-        if (searchMarker) modalMap.removeLayer(searchMarker);
-        searchMarker = L.circleMarker(center, { radius: 9, color: '#2563eb', fillColor: '#3b82f6', fillOpacity: .5, weight: 2 }).addTo(modalMap);
+        removeSearchMarker();
+        removeModalPin();
+        removeLocationCircle();
+        searchMarker = L.marker(center, { icon: pinIcon('#2563eb') }).addTo(modalMap);
+        searchMarker.bindPopup('Hasil pencarian: ' + document.getElementById('modalSearch').value).openPopup();
         modalState.area = 0;
         modalState.coords = JSON.stringify([{ lat: center[0], lng: center[1] }]);
-        if (modalPin) { modalMap.removeLayer(modalPin); modalPin = null; }
-        document.getElementById('modalHint').innerText = 'Lokasi dari hasil pencarian. Gambar poligon untuk mengukur luas.';
+        document.getElementById('modalHint').innerText = 'Lokasi dari hasil pencarian ditandai. Gambar poligon untuk mengukur luas.';
         updateModalFoot();
     }
 
